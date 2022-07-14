@@ -1,4 +1,4 @@
-# html.js
+# trogsoft.html.js
 Javascript HTML Builder
 
 Examples:
