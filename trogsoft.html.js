@@ -1,15 +1,16 @@
 // HTML.js by Trogsoft.
 // MIT Licence
 // https://github.com/trogsoft/htmljs
-// Version 1
+// Version 3
 
 /**
  * Create a new instance of the HTML object.
  * @param {string} rootNode - the tag name to use as the root node of the constructed HTML document.
  */
-const html = function (rootNode) {
+const html = function (rootNode, mixins) {
 
     let h = this;
+    h.mixins = mixins || [];
 
     let node = function (tag) {
 
@@ -38,7 +39,7 @@ const html = function (rootNode) {
             let output = '<' + n.tag + '';
             Object.keys(n.attr).forEach(x => {
                 let val = n.attr[x];
-                if (val != '')
+                if (typeof val !== "undefined" && val != null)
                     output += ' ' + x + '="' + val + '" ';
             });
             output = output.trim() + '>';
@@ -97,7 +98,7 @@ const html = function (rootNode) {
      */
     h.append = function (tag) {
         h.current.add(new node(tag));
-        return h;
+        return returnValue();
     }
 
     /**
@@ -110,7 +111,7 @@ const html = function (rootNode) {
         }
 
         h.current = h.current.parent;
-        return h;
+        return returnValue();
     }
 
     /**
@@ -122,7 +123,7 @@ const html = function (rootNode) {
             throw new Error('Current element must be <select>');
 
         h.current.selectedOption = opt;
-        return h;
+        return returnValue();
     }
 
     /**
@@ -143,7 +144,7 @@ const html = function (rootNode) {
         } else {
             throw new Error('The current tag is not a <select> element.');
         }
-        return h;
+        return returnValue();
     }
 
     /**
@@ -157,11 +158,11 @@ const html = function (rootNode) {
         if (!type) throw new Error('You must specify a type parameter for html.input()');
 
         h.append('input').attr('type', type);
-        if (value) h.attr('value', value);
+        if (typeof value !== "undefined" && value != null) h.attr('value', value);
         if (cls) h.class(cls);
         if (attr) h.attr(attr);
         h.close();
-        return h;
+        return returnValue();
 
     }
 
@@ -185,7 +186,7 @@ const html = function (rootNode) {
         } else {
             h.current.attr = attr;
         }
-        return h;
+        return returnValue();
     }
 
     /**
@@ -194,7 +195,7 @@ const html = function (rootNode) {
      */
     h.text = function (text) {
         h.current.text = text;
-        return h;
+        return returnValue();
     }
 
     /**
@@ -203,7 +204,7 @@ const html = function (rootNode) {
      */
     h.content = function (htmlContent) {
         h.current.rawHtml = htmlContent;
-        return h;
+        return returnValue();
     }
 
     /**
@@ -222,7 +223,7 @@ const html = function (rootNode) {
         h.append('div');
         if (cls)
             h.class(cls);
-        return h;
+        return returnValue();
     }
 
     /**
@@ -240,7 +241,7 @@ const html = function (rootNode) {
             });
             h.close();
         }
-        return h;
+        return returnValue();
     }
 
     /**
@@ -254,22 +255,27 @@ const html = function (rootNode) {
             h.append('td').text(x).close();
         });
         h.close();
-        return h;
+        return returnValue();
     }
 
     /**
      * Add a single attribute to the current element.
      * @param {string} name - the attribute name
      * @param {string} value - the attribute value
+     * @param {boolean} [merge=false] - merge with existing values
      */
-    function addAttr(name, value) {
+    function addAttr(name, value, merge) {
         if (!name) throw new Error('You must specify a name.');
 
         if (h.current.attr)
-            h.current.attr[name] = value;
+            if (merge && h.current.attr[name]) {
+                h.current.attr[name] += ' ' + value;
+            } else {
+                h.current.attr[name] = value;
+            }
         else
             h.current.attr = { key: value };
-        return h;
+        return returnValue();
     }
 
     /**
@@ -289,7 +295,7 @@ const html = function (rootNode) {
             h.attr(attr);
         h.text(content || '');
         h.close();
-        return h;
+        return returnValue();
     }
 
     /**
@@ -309,7 +315,7 @@ const html = function (rootNode) {
         h.attr({ href: href });
         h.text(label);
         h.close();
-        return h;
+        return returnValue();
     }
 
     /**
@@ -318,7 +324,7 @@ const html = function (rootNode) {
      */
     h.class = function (classList) {
         if (!classList) throw new Error('You must specify a class.');
-        return addAttr('class', classList);
+        return addAttr('class', classList, true);
     }
 
     /**
@@ -335,6 +341,27 @@ const html = function (rootNode) {
     let root = new node(rootNode);
     h.current = root;
 
-    return h;
+    const htmlProxy = {
+        get(obj, prop) {
+            if (obj[prop])
+                return obj[prop];
+
+            var mixin = obj.mixins[prop];
+            if (mixin) {
+                return function () {
+                    return mixin(proxy, ...arguments);
+                }
+            }
+
+        }
+    }
+
+    const proxy = new Proxy(h, htmlProxy);
+
+    function returnValue() {
+        return proxy;
+    }
+
+    return returnValue();
 
 }
